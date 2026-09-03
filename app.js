@@ -1069,45 +1069,86 @@ function showEmpDetailPopup(empId, triggerEl) {
     popup.dataset.currentEmpId = empId;
     popup.classList.remove('hidden');
 
-    // 定位：左边缘与雇员卡片左边缘对齐
     const card = triggerEl.closest('.employee-card');
     const anchorEl = card || triggerEl;
-    positionEmpPopup(popup, anchorEl);
 
-    // 滚动时跟随定位
+    // 打开时一次性决策弹出方向（默认上方），此后包括滚动跟随都不再切换另一侧
+    const placementSide = decidePlacementSide(popup, anchorEl);
+    popup.dataset.placementSide = placementSide; // 'above' | 'below'
+
+    // 如果选定方向都放不下，直接隐藏（不再翻到对面）
+    if (!positionEmpPopup(popup, anchorEl, placementSide)) {
+        hideEmpDetailPopup();
+        return;
+    }
+
+    // 滚动时跟随定位：始终使用打开时决策的同一侧
     const scrollHandler = () => {
         const currentCard = document.getElementById(`emp-card-${empId}`);
         if (!currentCard) {
             hideEmpDetailPopup();
             return;
         }
-        positionEmpPopup(popup, currentCard);
+        const side = popup.dataset.placementSide || 'above';
+        if (!positionEmpPopup(popup, currentCard, side)) {
+            hideEmpDetailPopup();
+        }
     };
     popup._scrollHandler = scrollHandler;
     window.addEventListener('scroll', scrollHandler, true);
 }
 
-function positionEmpPopup(popup, anchorEl) {
+/**
+ * 打开时一次性决策弹出方向：
+ *   默认尝试 'above'；只有当上方装不下 popup（含间距与边距）时改 'below'。
+ *   两边都装不下时，仍然返回 'above'（交给后续 position 决定 hide）。
+ */
+function decidePlacementSide(popup, anchorEl) {
+    const cardRect = anchorEl.getBoundingClientRect();
+    const popupRect = popup.getBoundingClientRect();
+    const gap = 8;
+    const edge = 8;
+    const spaceAbove = cardRect.top - gap - edge;
+    // 上方不够 → 切下弹；其他情况一律上弹（不做"上不够下也不够时比较谁更大"之类自动切换判断）
+    if (spaceAbove < popupRect.height) return 'below';
+    return 'above';
+}
+
+/**
+ * 按指定 side 定位，返回是否成功（true=popup 被放到指定侧且完整位于视口内；false=指定侧装不下，调用方应 hide）。
+ * 只按指定 side 计算，绝不尝试另一侧，绝不自动切换。
+ */
+function positionEmpPopup(popup, anchorEl, side) {
     const cardRect = anchorEl.getBoundingClientRect();
     const popupRect = popup.getBoundingClientRect();
 
+    const gap = 8;
+    const edge = 8;
+
+    // 水平：左对齐 + 左右边界裁剪
     let left = cardRect.left;
-    let top = cardRect.top - popupRect.height - 8;
-
-    // 右边界检查
-    if (left + popupRect.width > window.innerWidth - 8) {
-        left = window.innerWidth - popupRect.width - 8;
+    if (left + popupRect.width > window.innerWidth - edge) {
+        left = window.innerWidth - popupRect.width - edge;
     }
-    if (left < 8) left = 8;
+    if (left < edge) left = edge;
 
-    // 上方空间不足则隐藏
-    if (top < 8) {
-        hideEmpDetailPopup();
-        return;
+    let top;
+    let fits = false;
+    if (side === 'above') {
+        top = cardRect.top - popupRect.height - gap;
+        fits = top >= edge; // 上方完整可见（保留边距）
+    } else { // below
+        top = cardRect.bottom + gap;
+        fits = (top + popupRect.height) <= (window.innerHeight - edge); // 下方完整可见
+    }
+
+    if (!fits) {
+        return false; // 指定侧装不下 → 由调用方 hide（不再翻到对面）
     }
 
     popup.style.left = `${left}px`;
     popup.style.top = `${top}px`;
+    return true;
 }
 
 function hideEmpDetailPopup() {
