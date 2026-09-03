@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>异环一咖舍助手</title>
-    <link rel="stylesheet" href="style.css?v=236">
+    <link rel="stylesheet" href="style.css?v=249">
     <link rel="icon" href="favicon.ico">
 </head>
 <body>
@@ -64,11 +64,19 @@
             <!-- 雇员管理区域 -->
             <section class="card employee-section">
                 <div class="card-header">
-                    <h2 class="card-title">
-                        <span class="section-icon">👥</span>
-                        雇员配置
-                    </h2>
-                    <p class="card-desc">点击等级按钮选择拥有的雇员，系统将自动推荐最优搭配</p>
+                    <div class="employee-header-top">
+                        <div class="employee-header-left">
+                            <h2 class="card-title">
+                                <span class="section-icon">👥</span>
+                                雇员配置
+                            </h2>
+                        </div>
+                        <button id="add-employee-btn" class="add-employee-btn" title="管理自定义雇员">
+                            <span class="btn-icon">➕</span>
+                            <span class="btn-text">自定义雇员</span>
+                        </button>
+                    </div>
+                    <p class="card-desc">点击等级按钮选择拥有的雇员，点击雇员名查看加成详情</p>
                 </div>
                 <div class="card-body">
                     <div id="employee-list" class="employee-list">
@@ -122,7 +130,7 @@
 
     <!-- 底部固定按钮条（窄屏） -->
     <div class="bottom-bar">
-        <a href="https://github.com/2315506431/My-Web" target="_blank" class="bottom-bar-btn github-link">
+        <a href="https://github.com/2315506431/NTE-ORIGEN" target="_blank" class="bottom-bar-btn github-link">
             <span class="btn-icon">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
@@ -144,7 +152,7 @@
     <div class="floating-btn-group">
         <button id="advanced-settings-btn-float" class="floating-btn advanced-settings-btn" title="设置">⚙️</button>
         <button id="announcement-btn-float" class="floating-btn announcement-btn" title="公告">📢</button>
-        <a href="https://github.com/2315506431/My-Web" target="_blank" class="floating-btn github-btn github-link" title="GitHub 仓库">
+        <a href="https://github.com/2315506431/NTE-ORIGEN" target="_blank" class="floating-btn github-btn github-link" title="GitHub 仓库">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
             </svg>
@@ -160,8 +168,29 @@
             <div class="modal-body">
                 <p id="confirm-message" class="confirm-message">确定要执行此操作吗？</p>
                 <div class="modal-actions">
+                    <span id="confirm-extra-wrap" class="confirm-extra-wrap"></span>
                     <button id="confirm-cancel-btn" class="secondary-btn">取消</button>
                     <button id="confirm-ok-btn" class="primary-btn">确定</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 雇员重名对比弹窗 -->
+    <div id="emp-compare-modal" class="modal-overlay hidden">
+        <div class="modal-container emp-compare-container">
+            <div class="modal-header">
+                <h2 id="emp-compare-title">雇员加成对比</h2>
+                <button type="button" id="close-emp-compare-btn" class="modal-close-btn" aria-label="关闭">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="emp-compare-subtitle" class="emp-compare-subtitle"></div>
+                <div id="emp-compare-content" class="emp-compare-content"></div>
+                <div id="emp-compare-summary" class="emp-compare-summary"></div>
+                <div class="modal-actions emp-compare-actions">
+                    <button id="emp-compare-keep-btn" class="secondary-btn">保留自定义</button>
+                    <button id="emp-compare-delete-btn" class="danger-btn">删除自定义</button>
+                    <button id="emp-compare-close-btn" class="primary-btn">仅关闭</button>
                 </div>
             </div>
         </div>
@@ -264,6 +293,41 @@
         </div>
     </div>
     
-    <script src="app.js?v=255"></script>
+    <!-- 雇员详情悬浮窗（全局，避免被 overflow 裁剪） -->
+    <div id="emp-detail-popup" class="emp-detail-popup hidden"></div>
+
+    <!-- 自定义雇员弹窗 -->
+    <div id="employee-add-modal" class="modal-overlay hidden">
+        <div class="modal-container employee-add-modal-container">
+            <div class="modal-header">
+                <h2 id="emp-modal-title">自定义雇员</h2>
+                <button id="close-employee-add-btn" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <!-- 列表视图 -->
+                <div id="emp-list-view" class="emp-list-view">
+                    <div id="custom-emp-list" class="custom-emp-list">
+                        <!-- 自定义雇员列表由JS生成 -->
+                    </div>
+                    <button id="emp-show-form-btn" class="add-custom-emp-btn">+ 新增雇员</button>
+                </div>
+                <!-- 表单视图 -->
+                <div id="emp-form-view" class="emp-form-view hidden">
+                    <div class="setting-group">
+                        <label for="new-emp-name">雇员名称</label>
+                        <input type="text" id="new-emp-name" class="setting-input" placeholder="输入雇员名字">
+                    </div>
+                    <p class="setting-desc">配置各等级加成，可添加多个加成项</p>
+                    <div class="emp-add-levels" id="emp-add-levels"></div>
+                    <div class="modal-actions">
+                        <button id="emp-add-cancel-btn" class="secondary-btn">返回</button>
+                        <button id="emp-add-save-btn" class="primary-btn">保存雇员</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js?v=278"></script>
 </body>
 </html>

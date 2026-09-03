@@ -685,7 +685,7 @@ body.resizing *::after {
 
 .employee-card.vertical-layout .employee-info {
     flex: none;
-    text-align: center;
+    justify-content: center;
     width: 100%;
 }
 
@@ -699,6 +699,26 @@ body.resizing *::after {
 .employee-info {
     flex: 1;
     min-width: 0;
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.custom-badge {
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(108, 92, 231, 0.2);
+    color: var(--accent-secondary);
+    border: 1px solid rgba(108, 92, 231, 0.35);
+    line-height: 1.2;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
 }
 
 .employee-name {
@@ -2050,6 +2070,40 @@ body.resizing *::after {
     color: var(--text-primary);
     line-height: 1.6;
     margin: 0;
+    word-break: break-word;
+}
+
+/* 内嵌在确认弹窗文案里的「自定义」徽章：与雇员列表同款样式 */
+.confirm-message .custom-badge.confirm-inline-badge {
+    display: inline-flex;
+    align-items: center;
+    vertical-align: baseline;
+    margin: 0 3px;
+    font-size: 0.75rem;
+    padding: 2px 7px;
+}
+
+/* 把 danger-btn 放进弹窗按钮区时恢复按钮尺寸（danger-btn 原本 100% 宽用于单列大按钮） */
+.modal-actions .danger-btn.confirm-dialog-danger-btn {
+    width: auto;
+    padding: 10px 20px;
+    font-size: 0.9rem;
+}
+
+/* 自定义雇员列表中「与官方同名」等标签与姓名行内布局（原 inline-badge 不再使用，保留类名方便扩展） */
+
+/* 自定义雇员排序按钮禁用态 */
+.custom-emp-item-actions .item-action-btn.move-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    background: transparent;
+    border-color: var(--border-color);
+    color: var(--text-secondary);
+}
+.custom-emp-item-actions .item-action-btn.move-btn:disabled:hover {
+    background: transparent;
+    border-color: var(--border-color);
+    color: var(--text-secondary);
 }
 
 /* ========== 开关样式 ========== */
@@ -2256,5 +2310,654 @@ body.resizing *::after {
 .tooltip-tag:hover {
     color: var(--accent-primary);
 }
+
+/* ========== 雇员配置区头部 ========== */
+.employee-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.employee-header-left {
+    flex: 1;
+    min-width: 0;
+}
+
+.add-employee-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: var(--accent-primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+    flex-shrink: 0;
+}
+
+.add-employee-btn:hover {
+    background: var(--accent-secondary);
+    transform: translateY(-1px);
+}
+
+.add-employee-btn .btn-icon {
+    font-size: 0.9rem;
+}
+
+/* ========== 雇员详情悬浮窗 ========== */
+.emp-detail-popup {
+    position: fixed;
+    z-index: 999;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    padding: 14px 18px;
+    max-width: 320px;
+    min-width: 200px;
+    font-size: 0.85rem;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.emp-detail-popup:not(.hidden) {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.emp-detail-popup .popup-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.emp-detail-popup .popup-level-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 4px 0;
+    color: var(--text-secondary);
+}
+
+.emp-detail-popup .popup-level-label {
+    color: var(--accent-secondary);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.emp-detail-popup .popup-level-desc {
+    color: var(--text-secondary);
+    text-align: right;
+    line-height: 1.4;
+    word-break: break-all;
+}
+
+/* ========== 新增雇员弹窗 ========== */
+.employee-add-modal-container {
+    max-width: 640px;
+}
+
+.emp-add-levels {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.emp-add-level {
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+}
+
+.emp-add-level-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.emp-add-level-title {
+    font-weight: 600;
+    color: var(--accent-secondary);
+    font-size: 0.9rem;
+}
+
+.emp-add-bonus-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.emp-add-bonus-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.emp-add-bonus-row select,
+.emp-add-bonus-row input {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    padding: 6px 10px;
+    font-size: 0.85rem;
+    transition: var(--transition);
+}
+
+.emp-add-bonus-row select:focus,
+.emp-add-bonus-row input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+.emp-add-bonus-row select {
+    cursor: pointer;
+}
+
+.emp-add-bonus-row .bonus-value-input {
+    width: 80px;
+}
+
+.emp-add-bonus-row .bonus-value-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.emp-add-bonus-row .bonus-value-suffix {
+    position: absolute;
+    right: 6px;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    pointer-events: none;
+}
+
+.emp-add-bonus-row .bonus-value-wrapper .bonus-value-input {
+    padding-right: 16px;
+}
+
+.emp-add-bonus-row .bonus-tag-input {
+    width: 90px;
+}
+
+.emp-add-bonus-row .bonus-count-input {
+    width: 50px;
+}
+
+.emp-add-bonus-row .bonus-percent-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.emp-add-bonus-row .bonus-cond-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.emp-add-bonus-row .remove-bonus-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--red);
+    cursor: pointer;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+    flex-shrink: 0;
+}
+
+.emp-add-bonus-row .remove-bonus-btn:hover {
+    background: rgba(255, 107, 107, 0.1);
+    border-color: var(--red);
+}
+
+.emp-add-bonus-row .cond-fields {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.add-bonus-btn {
+    padding: 4px 12px;
+    background: transparent;
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: var(--transition);
+    margin-top: 4px;
+}
+
+.add-bonus-btn:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+/* ========== 自定义雇员列表视图 ========== */
+.emp-list-view {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.custom-emp-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+.custom-emp-empty {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 24px 0;
+    font-size: 0.9rem;
+}
+
+.custom-emp-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    transition: var(--transition);
+}
+
+.custom-emp-item:hover {
+    border-color: rgba(108, 92, 231, 0.3);
+    background: var(--bg-card-hover);
+}
+
+.custom-emp-item-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.custom-emp-item-tag {
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    line-height: 1.2;
+    letter-spacing: 0.5px;
+}
+
+.custom-emp-item-tag.conflict {
+    background: rgba(255, 107, 107, 0.15);
+    color: var(--red);
+    border: 1px solid rgba(255, 107, 107, 0.35);
+}
+
+.custom-emp-item-summary {
+    display: none;
+}
+
+.custom-emp-item-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.custom-emp-item-actions .item-action-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+}
+
+.custom-emp-item-actions .item-action-btn:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--accent-primary);
+    color: var(--text-primary);
+}
+
+.custom-emp-item-actions .item-action-btn.delete-btn:hover {
+    border-color: var(--red);
+    color: var(--red);
+    background: rgba(255, 107, 107, 0.1);
+}
+
+.add-custom-emp-btn {
+    width: 100%;
+    padding: 10px;
+    background: transparent;
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.add-custom-emp-btn:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+/* ========== 确认弹窗：额外按钮容器（对比按钮等左对齐占位） ========== */
+.confirm-extra-wrap {
+    flex: 1;
+    display: inline-flex;
+    gap: 12px;
+    justify-content: flex-start;
+    align-items: center;
+}
+
+/* ========== 雇员加成对比弹窗 ========== */
+#emp-compare-modal {
+    z-index: 1100;
+}
+
+.emp-compare-container {
+    max-width: 720px;
+}
+
+.emp-compare-subtitle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 16px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.emp-compare-source {
+    display: inline-flex;
+    align-items: center;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.emp-compare-source.official-side-source {
+    color: var(--green);
+}
+
+.custom-emp-inline-badge {
+    display: inline-flex;
+    vertical-align: baseline;
+    margin: 0;
+    font-size: 0.75rem;
+    padding: 2px 7px;
+}
+
+.emp-compare-vs {
+    color: var(--text-muted);
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.emp-compare-content {
+    /* 表格外包圆角裁切：border-collapse 的 table 无法直接显示圆角，
+       由外层 overflow:hidden + border-radius 裁切出圆滑边角。 */
+    border-top: 1px solid var(--border-color);
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    /* bottom 边框故意不画：整张表的底边就是 Lv.5（最后一行）td 自身的 border-bottom，
+       避免出现“双线”并保证底边就是五级下方的那条分隔线。 */
+    border-bottom: none;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+}
+
+.emp-compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    table-layout: fixed;
+    border: none; /* 外边框由外层 .emp-compare-content 统一提供并裁切圆角 */
+}
+
+.emp-compare-table th,
+.emp-compare-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+    vertical-align: middle;
+}
+
+.emp-compare-table thead th {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.8rem;
+    letter-spacing: 0.3px;
+}
+
+.emp-compare-th-level { width: 72px; text-align: center; }
+.emp-compare-th-side  { width: 40%; }
+.emp-compare-th-status{ width: 80px; text-align: center; }
+
+/* 注：表头上的"官方"两个字通过 <span class="emp-compare-source official-side-source">
+   与副标题共享样式（颜色+粗细），不再单独对整个 th 上色以避免"加成"两个字也被染色。 */
+
+.emp-compare-row:hover td {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.emp-compare-diff-row td {
+    background: rgba(255, 107, 107, 0.06);
+}
+
+.emp-compare-diff-row:hover td {
+    background: rgba(255, 107, 107, 0.1);
+}
+
+.emp-compare-td-level {
+    text-align: center;
+    font-weight: 700;
+    color: var(--accent-secondary);
+    white-space: nowrap;
+    background: rgba(108, 92, 231, 0.05);
+}
+
+.emp-compare-td-side {
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.emp-compare-td-side.empty-side {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.emp-compare-bonus-block {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.emp-compare-bonus-scope {
+    display: inline-block;
+    font-size: 0.75rem;
+    color: var(--orange);
+    margin-bottom: 2px;
+}
+
+.emp-compare-bonus-main {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.emp-compare-bonus-type {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.emp-compare-bonus-type.售价 {
+    background: var(--purple-bg);
+    color: var(--purple);
+}
+
+.emp-compare-bonus-type.人流量 {
+    background: var(--blue-bg);
+    color: var(--blue);
+}
+
+.emp-compare-bonus-type.unknown {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+}
+
+.emp-compare-bonus-value {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.emp-compare-bonus-value.is-percent {
+    color: var(--green);
+}
+
+.emp-compare-td-status {
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.emp-compare-td-status.status-identical {
+    color: var(--green);
+}
+
+.emp-compare-td-status.status-diff {
+    color: var(--red);
+    text-shadow: 0 0 0.5px rgba(255, 107, 107, 0.5);
+}
+
+.emp-compare-summary {
+    margin-top: 24px;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    text-align: center;
+    font-weight: 500;
+}
+
+.emp-compare-summary.all-same {
+    background: var(--green-bg);
+    color: var(--green);
+    border: 1px solid rgba(0, 206, 201, 0.2);
+}
+
+.emp-compare-summary.has-diff {
+    background: rgba(255, 107, 107, 0.08);
+    color: var(--red);
+    border: 1px solid rgba(255, 107, 107, 0.2);
+}
+
+.emp-compare-actions {
+    margin-top: 20px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.emp-compare-actions .secondary-btn,
+.emp-compare-actions .danger-btn,
+.emp-compare-actions .primary-btn {
+    width: auto;
+    flex: 1;
+    min-width: 120px;
+}
+
+.emp-compare-container .modal-close-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+}
+
+.emp-compare-container .modal-close-btn:hover {
+    background: var(--bg-input);
+    border-color: var(--accent-primary);
+    color: var(--text-primary);
+}
+
+/* 窄屏：对比弹窗按钮换行更稳，等级列更窄 */
+@media (max-width: 520px) {
+    .emp-compare-table {
+        font-size: 0.8rem;
+        table-layout: auto;
+    }
+    .emp-compare-th-level { width: 56px; }
+    .emp-compare-table th,
+    .emp-compare-table td {
+        padding: 8px 6px;
+    }
+    .emp-compare-summary {
+        font-size: 0.8rem;
+    }
+}
+
 
 

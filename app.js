@@ -6,6 +6,85 @@
  * 2. 系统自动推荐最优10人+5菜搭配
  */
 
+// ============================================================================
+// ==== BEGIN MIGRATION SYSTEM ================================================
+// 独立迁移模块。未来任何时候想彻底移除：
+//   1) 删掉这段 BEGIN...END 注释块
+//   2) 删掉 DOMContentLoaded 最顶部的 runMigrations() 调用
+// 无其他业务耦合。
+// 设计要点：不写入任何"迁移状态 key"（用户不希望有 nte_origen_migrations_done_v1 之类永久残留），
+// 每个 migration 的幂等由其 run() 内部基于"自然条件"自行判定，例如"只要还存在任何 yihuan_* key 就执行"。
+// 每次页面加载都会遍历执行 MIGRATIONS，但每个 migration 内部会快速跳过不需要处理的情况，
+// 即使多次执行也不会破坏值（M1 明确保证：新前缀已有值时不覆盖，仅移除残留旧 key）。
+// ----------------------------------------------------------------------------
+(function () {
+    /**
+     * 所有迁移按顺序写在下面。
+     * 每个 migration 对象：
+     *   id   - 仅用于日志追踪（不再写入 localStorage 作为幂等记录）
+     *   run  - 纯逻辑函数，必须自行保证幂等（多次执行结果一致、不破坏数据）
+     */
+    const MIGRATIONS = [
+        {
+            id: 'M1_20260904_rename_prefix_yihuan_to_nte_origen',
+            run: function () {
+                const OLD_PREFIX = 'yihuan_';
+                const NEW_PREFIX = 'nte_origen_';
+
+                // snapshot 所有 key
+                const allKeys = [];
+                for (let i = 0, len = localStorage.length; i < len; i++) {
+                    const k = localStorage.key(i);
+                    if (k) allKeys.push(k);
+                }
+
+                const oldKeys = allKeys.filter(function (k) { return k.indexOf(OLD_PREFIX) === 0; });
+
+                // 无旧前缀 key → 快速跳过，不做任何写操作
+                if (oldKeys.length === 0) return;
+
+                for (let i = 0; i < oldKeys.length; i++) {
+                    const oldKey = oldKeys[i];
+                    const newKey = NEW_PREFIX + oldKey.slice(OLD_PREFIX.length);
+                    try {
+                        const oldVal = localStorage.getItem(oldKey);
+                        if (oldVal === null) { localStorage.removeItem(oldKey); continue; }
+                        const newVal = localStorage.getItem(newKey);
+                        // 新前缀已经有值时不覆盖，避免迁移中途中断后重复执行造成新值被旧值覆盖
+                        if (newVal === null) {
+                            localStorage.setItem(newKey, oldVal);
+                        }
+                        localStorage.removeItem(oldKey);
+                    } catch (err) {
+                        console.error('[MIGRATION M1] 迁移单条失败: oldKey=' + oldKey, err);
+                        throw err;
+                    }
+                }
+            },
+        },
+        // === 在此追加未来迁移 ===
+        // { id: 'M2_2026xxxx_xxx', run: function(){ if(/* 自然判定不需要跑 */) return; ... } },
+    ];
+
+    function run() {
+        for (let i = 0; i < MIGRATIONS.length; i++) {
+            const m = MIGRATIONS[i];
+            try {
+                console.info('[MIGRATION] 检查: ' + m.id);
+                m.run();
+                console.info('[MIGRATION] 处理完成: ' + m.id);
+            } catch (err) {
+                console.error('[MIGRATION] 失败，终止后续迁移: ' + m.id, err);
+                break;
+            }
+        }
+    }
+
+    window.__nte_origen_runMigrations = run;
+})();
+// ==== END MIGRATION SYSTEM ==================================================
+// ============================================================================
+
 // ========== 全局状态 ==========
 const state = {
     employees: [],          // 所有雇员数据
@@ -40,10 +119,10 @@ const ADVANCED_SETTINGS = {
 };
 
 // ========== 高级设置本地存储 ==========
-const ADVANCED_SETTINGS_KEY = 'yihuan_advanced_settings';
+const ADVANCED_SETTINGS_KEY = 'nte_origen_advanced_settings';
 
 // ========== 公告已读状态本地存储 ==========
-const ANNOUNCEMENT_READ_KEY = 'yihuan_announcement_read_max_id';
+const ANNOUNCEMENT_READ_KEY = 'nte_origen_announcement_read_max_id';
 
 function getMaxReadAnnouncementId() {
     try {
@@ -397,35 +476,144 @@ function closeAdvancedSettingsModal() {
 
 // ========== 自定义确认弹窗 ==========
 let confirmCallback = null;
+let confirmCancelCallback = null;
 
-function showConfirmDialog({ title = '确认', message = '', onConfirm = null }) {
+function showConfirmDialog({
+    title = '确认',
+    message = '',
+    messageHtml = null,
+    onConfirm = null,
+    onCancel = null,
+    okText = null,
+    cancelText = null,
+    okClass = null,
+    cancelClass = null,
+    extraButtons = null, // [{text, className?, onClick}, ...]
+    overlayCloseEnabled = true, // false 时禁止点遮罩空白关闭（如雇员名称冲突必须点按钮）
+}) {
     const modal = document.getElementById('confirm-modal');
     const titleEl = document.getElementById('confirm-title');
     const messageEl = document.getElementById('confirm-message');
-    if (!modal || !titleEl || !messageEl) return;
+    const okBtn = document.getElementById('confirm-ok-btn');
+    const cancelBtn = document.getElementById('confirm-cancel-btn');
+    const extraWrap = document.getElementById('confirm-extra-wrap');
+    if (!modal || !titleEl || !messageEl || !okBtn || !cancelBtn || !extraWrap) return;
+
+    // 按钮文本与样式（临时覆盖，关闭时还原）
+    const restore = () => {
+        okBtn.dataset.restoreText ? (okBtn.textContent = okBtn.dataset.restoreText) : (okBtn.textContent = '确定');
+        cancelBtn.dataset.restoreText ? (cancelBtn.textContent = cancelBtn.dataset.restoreText) : (cancelBtn.textContent = '取消');
+        if (okBtn.dataset.restoreClass) okBtn.className = okBtn.dataset.restoreClass;
+        if (cancelBtn.dataset.restoreClass) cancelBtn.className = cancelBtn.dataset.restoreClass;
+        extraWrap.innerHTML = '';
+        // 还原：关闭时清除强制遮罩关闭标记，避免下次普通 confirm 也被锁
+        modal.removeAttribute('data-no-overlay-close');
+        delete okBtn.dataset.restoreText;
+        delete okBtn.dataset.restoreClass;
+        delete cancelBtn.dataset.restoreText;
+        delete cancelBtn.dataset.restoreClass;
+    };
+    // snapshot default state once per cycle
+    if (!okBtn.dataset.restoreText) okBtn.dataset.restoreText = okBtn.textContent;
+    if (!cancelBtn.dataset.restoreText) cancelBtn.dataset.restoreText = cancelBtn.textContent;
+    if (!okBtn.dataset.restoreClass) okBtn.dataset.restoreClass = okBtn.className;
+    if (!cancelBtn.dataset.restoreClass) cancelBtn.dataset.restoreClass = cancelBtn.className;
+    // restore 防止多轮调用叠加：每次打开前先还原再应用
+    restore();
+    okBtn.dataset.restoreText = okBtn.textContent;
+    cancelBtn.dataset.restoreText = cancelBtn.textContent;
+    okBtn.dataset.restoreClass = okBtn.className;
+    cancelBtn.dataset.restoreClass = cancelBtn.className;
+    if (okText) okBtn.textContent = okText;
+    if (cancelText) cancelBtn.textContent = cancelText;
+    if (okClass) okBtn.className = okClass;
+    if (cancelClass) cancelBtn.className = cancelClass;
+
+    // 遮罩关闭开关：必须在 restore() 之后设置，避免 restore 清除
+    if (overlayCloseEnabled) {
+        modal.removeAttribute('data-no-overlay-close');
+    } else {
+        modal.setAttribute('data-no-overlay-close', '1');
+    }
 
     titleEl.textContent = title;
-    messageEl.textContent = message;
+    if (messageHtml) {
+        messageEl.innerHTML = messageHtml;
+    } else {
+        messageEl.textContent = message;
+    }
     confirmCallback = onConfirm;
+    confirmCancelCallback = onCancel;
+
+    // 渲染额外按钮（左对齐；不影响右侧取消/确定顺序）
+    // 必须在 restore() 之后执行，避免被 restore 的 extraWrap.innerHTML='' 清空
+    extraWrap.innerHTML = '';
+    if (Array.isArray(extraButtons)) {
+        extraButtons.forEach(btnCfg => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = btnCfg.text || '';
+            b.className = btnCfg.className || 'secondary-btn';
+            b.addEventListener('click', (ev) => {
+                try {
+                    if (typeof btnCfg.onClick === 'function') btnCfg.onClick(ev);
+                } catch (err) {
+                    console.error('confirm extra button onClick error', err);
+                }
+            });
+            extraWrap.appendChild(b);
+        });
+    }
+
+    // 把 restore 挂到一次性回调中，由 closeConfirmModal 调用
+    modal._restoreConfirmButtons = restore;
 
     modal.classList.remove('hidden');
 }
 
 function closeConfirmModal() {
     const modal = document.getElementById('confirm-modal');
+    if (modal && typeof modal._restoreConfirmButtons === 'function') {
+        try { modal._restoreConfirmButtons(); } catch (_) { /* noop */ }
+        delete modal._restoreConfirmButtons;
+    }
     if (modal) modal.classList.add('hidden');
     confirmCallback = null;
+    confirmCancelCallback = null;
 }
 
 function clearAllLocalData() {
     showConfirmDialog({
         title: '⚠️ 危险操作',
-        message: '确定要清除所有本地数据吗？这将包括雇员配置、菜品配置、设置和公告已读状态。此操作不可撤销！',
+        message: '确定要清除所有本地数据吗？这将包括雇员配置、菜品配置、设置、公告已读状态、自定义雇员以及所有 nte_origen_ 前缀的本地存储项。此操作不可撤销！',
         onConfirm: () => {
-            localStorage.removeItem(STORAGE_KEY);
-            localStorage.removeItem(ITEM_STORAGE_KEY);
-            localStorage.removeItem(ADVANCED_SETTINGS_KEY);
-            localStorage.removeItem(ANNOUNCEMENT_READ_KEY);
+            // 方案A：前缀匹配清除 —— 只清除本应用 nte_origen_* 的所有 key，避免同 origin 下其他应用被误伤；
+            // 新功能加 nte_origen_ 前缀的 key 会自动纳入清除范围，不再需要手动补白名单。
+            // 若将来有 "永久保留不被清除" 的 nte_origen_ key，加进 PRESERVE_KEYS 数组即可。
+            const PRESERVE_KEYS = []; // ['nte_origen_privacy_consent_version']
+            const appPrefix = 'nte_origen_';
+            try {
+                // 先 snapshot 所有 key 再逐项判定：localStorage.key(i) 是 live binding，
+                // 边遍历边 removeItem 时索引会重排，倒序也依然可能漏删，必须先取出一份静态数组。
+                const snapshot = [];
+                for (let i = 0, len = localStorage.length; i < len; i++) {
+                    const k = localStorage.key(i);
+                    if (k) snapshot.push(k);
+                }
+                for (const k of snapshot) {
+                    if (!k.startsWith(appPrefix)) continue;
+                    if (PRESERVE_KEYS.includes(k)) continue;
+                    localStorage.removeItem(k);
+                }
+            } catch (err) {
+                console.error('clearAllLocalData 前缀清除失败，回退为逐项清除兜底', err);
+                localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem(ITEM_STORAGE_KEY);
+                localStorage.removeItem(ADVANCED_SETTINGS_KEY);
+                localStorage.removeItem(ANNOUNCEMENT_READ_KEY);
+                localStorage.removeItem(CUSTOM_EMP_STORAGE_KEY);
+                localStorage.removeItem(CUSTOM_EMP_CONFLICT_ACK_KEY);
+            }
 
             // 重置状态
             ADVANCED_SETTINGS.decorationBonus = 0.09;
@@ -467,6 +655,12 @@ function clearAllLocalData() {
 // ========== 更新雇员列表 ==========
 function updateEmployeeList() {
     renderEmployeeList();
+    // 事件委托只需绑定一次
+    const container = document.getElementById('employee-list');
+    if (container && !container.dataset.empEventsBound) {
+        container.dataset.empEventsBound = 'true';
+        bindEmployeeNameEvents(container);
+    }
 }
 
 // ========== 数据加载 ==========
@@ -482,6 +676,16 @@ async function loadData() {
         ]);
 
         state.employees = await employeesRes.json();
+        // 合并自定义雇员
+        const customEmps = loadCustomEmployees();
+        // 检测与官方雇员重名的自定义雇员
+        const officialNames = new Set(state.employees.map(e => e.name));
+        const conflictingCustom = customEmps.filter(e => officialNames.has(e.name));
+        const safeCustom = customEmps.filter(e => !conflictingCustom.includes(e));
+        state.employees.push(...safeCustom);
+        state.employees.push(...conflictingCustom);
+        // 按 localStorage 顺序重置自定义雇员顺序（保证主列表顺序与用户排序一致）
+        syncCustomEmployeesOrderInState(customEmps);
         state.items = await itemsRes.json();
         state.announcements = await announcementsRes.json();
 
@@ -524,6 +728,10 @@ async function loadData() {
         
         setTimeout(() => {
             loadingOverlay.classList.add('hidden');
+            // 数据和 UI 都就绪后，逐个询问与官方雇员重名的自定义雇员是否删除
+            if (typeof promptCustomEmpConflicts === 'function') {
+                promptCustomEmpConflicts(conflictingCustom);
+            }
         }, 300);
     } catch (error) {
         console.error('数据加载失败:', error);
@@ -785,9 +993,12 @@ function renderEmployeeList() {
             return bonuses;
         });
 
+        const customBadge = emp.isCustom ? '<span class="custom-badge">自定义</span>' : '';
+
         card.innerHTML = `
-            <div class="employee-info">
+            <div class="employee-info" data-emp-id="${emp.id}">
                 <div class="employee-name">${emp.name}</div>
+                ${customBadge}
             </div>
             <div class="employee-controls">
                 <div class="level-selector" id="level-selector-${emp.id}">
@@ -829,9 +1040,867 @@ function renderEmployeeList() {
             });
         });
     });
-    
+
     // 渲染完成后更新布局
     requestAnimationFrame(updateEmployeeCardLayout);
+}
+
+// ========== 雇员详情悬浮窗（点击触发） ==========
+function bindEmployeeNameEvents(container) {
+    container.addEventListener('click', (e) => {
+        const infoEl = e.target.closest('.employee-info');
+        if (!infoEl) return;
+        e.stopPropagation();
+        const popup = document.getElementById('emp-detail-popup');
+        if (popup.dataset.currentEmpId === infoEl.dataset.empId && !popup.classList.contains('hidden')) {
+            hideEmpDetailPopup();
+        } else {
+            showEmpDetailPopup(infoEl.dataset.empId, infoEl);
+        }
+    });
+}
+
+function showEmpDetailPopup(empId, triggerEl) {
+    const emp = state.employees.find(e => e.id === empId);
+    if (!emp) return;
+
+    const popup = document.getElementById('emp-detail-popup');
+    popup.innerHTML = buildEmpDetailContent(emp);
+    popup.dataset.currentEmpId = empId;
+    popup.classList.remove('hidden');
+
+    // 定位：左边缘与雇员卡片左边缘对齐
+    const card = triggerEl.closest('.employee-card');
+    const anchorEl = card || triggerEl;
+    positionEmpPopup(popup, anchorEl);
+
+    // 滚动时跟随定位
+    const scrollHandler = () => {
+        const currentCard = document.getElementById(`emp-card-${empId}`);
+        if (!currentCard) {
+            hideEmpDetailPopup();
+            return;
+        }
+        positionEmpPopup(popup, currentCard);
+    };
+    popup._scrollHandler = scrollHandler;
+    window.addEventListener('scroll', scrollHandler, true);
+}
+
+function positionEmpPopup(popup, anchorEl) {
+    const cardRect = anchorEl.getBoundingClientRect();
+    const popupRect = popup.getBoundingClientRect();
+
+    let left = cardRect.left;
+    let top = cardRect.top - popupRect.height - 8;
+
+    // 右边界检查
+    if (left + popupRect.width > window.innerWidth - 8) {
+        left = window.innerWidth - popupRect.width - 8;
+    }
+    if (left < 8) left = 8;
+
+    // 上方空间不足则隐藏
+    if (top < 8) {
+        hideEmpDetailPopup();
+        return;
+    }
+
+    popup.style.left = `${left}px`;
+    popup.style.top = `${top}px`;
+}
+
+function hideEmpDetailPopup() {
+    const popup = document.getElementById('emp-detail-popup');
+    if (popup._scrollHandler) {
+        window.removeEventListener('scroll', popup._scrollHandler, true);
+        popup._scrollHandler = null;
+    }
+    popup.classList.add('hidden');
+    popup.dataset.currentEmpId = '';
+}
+
+function buildEmpDetailContent(emp) {
+    const rows = [1, 2, 3, 4, 5].map(lv => {
+        const desc = getLevelOnlyBonusDescription(emp, lv);
+        return `<div class="popup-level-row">
+            <span class="popup-level-label">Lv.${lv}</span>
+            <span class="popup-level-desc">${desc}</span>
+        </div>`;
+    }).join('');
+
+    return `<div class="popup-title">${emp.name}</div>${rows}`;
+}
+
+// 获取指定等级自身加成描述（非累计）
+function getLevelOnlyBonusDescription(emp, level) {
+    const bonuses = emp.levels[String(level)] || [];
+    if (bonuses.length === 0) {
+        return '无加成';
+    }
+
+    const parts = [];
+    bonuses.forEach(b => {
+        if (b.type === 'direct') {
+            if (b.isPercent) {
+                parts.push(`售价+${(b.value * 100).toFixed(1)}%`);
+            } else {
+                parts.push(`售价+${b.value}方斯`);
+            }
+        } else if (b.type === 'traffic') {
+            if (b.isPercent) {
+                parts.push(`人流量+${(b.value * 100).toFixed(1)}%`);
+            } else {
+                parts.push(`人流量+${b.value}`);
+            }
+        } else if (b.type === 'conditional') {
+            const condDesc = b.conditionType === 'sameTagCount'
+                ? `任意标签×${b.condition.count}`
+                : `${b.condition.tag}×${b.condition.count}`;
+            const effectDesc = b.effectType === 'direct'
+                ? (b.isPercent ? `售价+${(b.effectValue * 100).toFixed(1)}%` : `售价+${b.effectValue}方斯`)
+                : (b.isPercent ? `人流量+${(b.effectValue * 100).toFixed(1)}%` : `人流量+${b.effectValue}`);
+            parts.push(`${condDesc}→${effectDesc}`);
+        }
+    });
+
+    return parts.join(', ');
+}
+
+// 点击页面其他地方关闭悬浮窗
+document.addEventListener('click', (e) => {
+    const popup = document.getElementById('emp-detail-popup');
+    if (popup.classList.contains('hidden')) return;
+    if (!e.target.closest('.employee-info') && !e.target.closest('#emp-detail-popup')) {
+        hideEmpDetailPopup();
+    }
+});
+
+// ========== 新增雇员弹窗 ==========
+const CUSTOM_EMP_STORAGE_KEY = 'nte_origen_custom_employees';
+const CUSTOM_EMP_CONFLICT_ACK_KEY = 'nte_origen_custom_emp_conflict_ack';
+
+// ========== 雇员重名：加成对比弹窗 ==========
+// 将一条加成对象规格化为「对比签名 key + 人类可读文本」，用于并排显示和差异匹配
+function normalizeBonusForCompare(b) {
+    if (!b) return null;
+    let typeText = '';        // 加成性质（售价 / 人流量）
+    let scopeText = '';       // 条件描述（无条件时为空）
+    let effectRaw = 0;
+    let isPercent = false;
+
+    if (b.type === 'direct') {
+        typeText = '售价';
+        effectRaw = Number(b.value || 0);
+        isPercent = !!b.isPercent;
+    } else if (b.type === 'traffic') {
+        typeText = '人流量';
+        effectRaw = Number(b.value || 0);
+        isPercent = !!b.isPercent;
+    } else if (b.type === 'conditional') {
+        // 条件加成：effectType 决定性质
+        typeText = b.effectType === 'direct' ? '售价' : '人流量';
+        effectRaw = Number(b.effectValue || 0);
+        isPercent = !!b.isPercent;
+        if (b.conditionType === 'sameTagCount') {
+            const c = (b.condition && b.condition.count) || 0;
+            scopeText = `条件：同类标签×${c}`;
+        } else {
+            const tag = (b.condition && b.condition.tag) || '';
+            const c = (b.condition && b.condition.count) || 0;
+            scopeText = `条件：${tag || '指定标签'}×${c}`;
+        }
+    } else {
+        return null;
+    }
+
+    let effectText;
+    if (isPercent) {
+        effectText = `+${(effectRaw * 100).toFixed(1)}%`;
+    } else if (typeText === '售价') {
+        effectText = `+${effectRaw.toFixed(2)}方斯`;
+    } else {
+        effectText = `+${Math.round(effectRaw)}`;
+    }
+
+    // 签名：用于判定两条是否“完全一样”（同性质 + 同条件 + 同数值 + 同 %）
+    const sig = `${typeText}||${scopeText}||${isPercent ? 'P' : 'N'}||${effectRaw.toFixed(6)}`;
+    return { sig: sig, typeText, scopeText, effectText, isPercent, effectRaw };
+}
+
+function formatCellForCompare(bonusList) {
+    const rows = [];
+    const list = Array.isArray(bonusList) ? bonusList : [];
+    list.forEach(b => {
+        const norm = normalizeBonusForCompare(b);
+        if (!norm) return;
+        rows.push({ ...norm });
+    });
+    return rows;
+}
+
+let empCompareCtx = null; // { customEmpId, officialEmpId, onKeep(), onDelete() }
+
+function openEmpCompareModal(customEmp, officialEmp, actions) {
+    const modal = document.getElementById('emp-compare-modal');
+    const titleEl = document.getElementById('emp-compare-title');
+    const subtitleEl = document.getElementById('emp-compare-subtitle');
+    const contentEl = document.getElementById('emp-compare-content');
+    if (!modal || !titleEl || !subtitleEl || !contentEl) return;
+
+    const safeName = String(customEmp && customEmp.name ? customEmp.name : '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    titleEl.textContent = `雇员加成对比：${safeName || ''}`;
+    subtitleEl.innerHTML = `
+        <span class="emp-compare-source custom-side-source"><span class="custom-badge custom-emp-inline-badge">自定义</span></span>
+        <span class="emp-compare-vs">vs</span>
+        <span class="emp-compare-source official-side-source">官方版本</span>
+    `;
+
+    empCompareCtx = {
+        customEmpId: customEmp && customEmp.id,
+        officialEmpId: officialEmp && officialEmp.id,
+        onKeep: actions && actions.onKeep ? actions.onKeep : null,
+        onDelete: actions && actions.onDelete ? actions.onDelete : null,
+    };
+
+    // 组装表体
+    const levels = [1, 2, 3, 4, 5];
+    let html = `<table class="emp-compare-table"><thead><tr>
+        <th class="emp-compare-th-level">等级</th>
+        <th class="emp-compare-th-side"><span class="custom-badge custom-emp-inline-badge">自定义</span> 加成</th>
+        <th class="emp-compare-th-side"><span class="emp-compare-source official-side-source">官方</span> 加成</th>
+        <th class="emp-compare-th-status">状态</th>
+    </tr></thead><tbody>`;
+
+    let anyDiff = false;
+    levels.forEach(lv => {
+        const customRows = formatCellForCompare((customEmp && customEmp.levels && customEmp.levels[String(lv)]) || []);
+        const officialRows = formatCellForCompare((officialEmp && officialEmp.levels && officialEmp.levels[String(lv)]) || []);
+        const max = Math.max(customRows.length, officialRows.length, 1);
+        for (let i = 0; i < max; i++) {
+            const c = customRows[i] || null;
+            const o = officialRows[i] || null;
+            let statusText = '', statusClass = '';
+            if (!c && !o) {
+                // 双方都没加成，不渲染每一行；仅在外层标记“无加成”一次
+            }
+        }
+        if (customRows.length === 0 && officialRows.length === 0) {
+            html += `<tr class="emp-compare-row">
+                <td class="emp-compare-td-level" rowspan="1">Lv.${lv}</td>
+                <td class="emp-compare-td-side empty-side">—</td>
+                <td class="emp-compare-td-side empty-side">—</td>
+                <td class="emp-compare-td-status status-identical">相同</td>
+            </tr>`;
+            return;
+        }
+        const maxLen = Math.max(customRows.length, officialRows.length);
+        for (let i = 0; i < maxLen; i++) {
+            const c = customRows[i];
+            const o = officialRows[i];
+            const cSig = c ? c.sig : '__NONE__';
+            const oSig = o ? o.sig : '__NONE__';
+            let statusText, statusClass;
+            if (c && o && cSig === oSig) {
+                statusText = '相同';
+                statusClass = 'status-identical';
+            } else {
+                statusText = '不同';
+                statusClass = 'status-diff';
+                anyDiff = true;
+            }
+            const renderCell = (n, sideTag) => {
+                if (!n) return `<td class="emp-compare-td-side empty-side emp-compare-cell-${sideTag}">—</td>`;
+                const scopeHtml = n.scopeText ? `<span class="emp-compare-bonus-scope">${n.scopeText}</span>` : '';
+                const typeHtml = `<span class="emp-compare-bonus-type emp-compare-bonus-type-${n.typeText || 'unknown'}">${n.typeText || ''}</span>`;
+                const effectHtml = `<span class="emp-compare-bonus-value ${n.isPercent ? 'is-percent' : ''}">${n.effectText || ''}</span>`;
+                return `<td class="emp-compare-td-side emp-compare-cell-${sideTag}"><div class="emp-compare-bonus-block">${scopeHtml}<div class="emp-compare-bonus-main">${typeHtml} ${effectHtml}</div></div></td>`;
+            };
+            html += `<tr class="emp-compare-row ${statusClass === 'status-diff' ? 'emp-compare-diff-row' : ''}">
+                ${i === 0 ? `<td class="emp-compare-td-level" rowspan="${maxLen}">Lv.${lv}</td>` : ''}
+                ${renderCell(c, 'custom')}
+                ${renderCell(o, 'official')}
+                <td class="emp-compare-td-status ${statusClass}">${statusText}</td>
+            </tr>`;
+        }
+    });
+
+    html += '</tbody></table>';
+
+    contentEl.innerHTML = html;
+
+    // "是否一致"提示框从 table 外包（单独 DOM 节点）渲染，保证与表格有明显间隙分开
+    const summaryEl = document.getElementById('emp-compare-summary');
+    if (summaryEl) {
+        summaryEl.className = 'emp-compare-summary ' + (anyDiff ? 'has-diff' : 'all-same');
+        summaryEl.textContent = anyDiff
+            ? '检测到差异，请自行确认是否需要删除自定义雇员。'
+            : '双方所有等级加成完全一致。';
+    }
+
+    modal.classList.remove('hidden');
+}
+
+function closeEmpCompareModal() {
+    const modal = document.getElementById('emp-compare-modal');
+    if (modal) modal.classList.add('hidden');
+    empCompareCtx = null;
+}
+
+function handleEmpCompareKeep() {
+    const ctx = empCompareCtx;
+    const onKeep = ctx && ctx.onKeep ? ctx.onKeep : null;
+    closeEmpCompareModal();
+    if (typeof onKeep === 'function') onKeep();
+}
+
+function handleEmpCompareDelete() {
+    const ctx = empCompareCtx;
+    const onDelete = ctx && ctx.onDelete ? ctx.onDelete : null;
+    closeEmpCompareModal();
+    if (typeof onDelete === 'function') onDelete();
+}
+// 约定：
+//  - 创建/编辑自定义雇员时，若与官方雇员 name 重名且用户已在保存确认中点击确定 → 写入 key
+//  - loadData 检测到官方-自定义重名，若用户点击“保留” → 写入同一 key
+//  - 编辑时若 name 变了，要移除旧 key（旧 name）；删除雇员时一次性清除该雇员所有旧 key
+//  - “编辑已冲突雇员但未改姓名”时，若存在 (id||新name) ack → 不重复弹保存确认（用户要求）
+function loadConflictAckKeys() {
+    try {
+        const raw = localStorage.getItem(CUSTOM_EMP_CONFLICT_ACK_KEY);
+        if (!raw) return new Set();
+        const arr = JSON.parse(raw);
+        return new Set(Array.isArray(arr) ? arr : []);
+    } catch (err) {
+        console.error('读取重名确认记录失败:', err);
+        return new Set();
+    }
+}
+
+function saveConflictAckKeys(set) {
+    try {
+        localStorage.setItem(CUSTOM_EMP_CONFLICT_ACK_KEY, JSON.stringify(Array.from(set)));
+    } catch (err) {
+        console.error('写入重名确认记录失败:', err);
+    }
+}
+
+function conflictAckKey(empId, conflictName) {
+    return `${String(empId)}||${String(conflictName)}`;
+}
+
+function hasConflictAck(empId, conflictName) {
+    return loadConflictAckKeys().has(conflictAckKey(empId, conflictName));
+}
+
+function addConflictAck(empId, conflictName) {
+    const set = loadConflictAckKeys();
+    set.add(conflictAckKey(empId, conflictName));
+    saveConflictAckKeys(set);
+}
+
+function removeConflictAckByKey(keyToRemove, set) {
+    // 内存 set 上删；不负责持久化；调用方最后 save
+    if (set.has(keyToRemove)) set.delete(keyToRemove);
+}
+
+function removeConflictAcksForEmp(empId) {
+    const set = loadConflictAckKeys();
+    const prefix = `${String(empId)}||`;
+    let changed = false;
+    Array.from(set).forEach(k => {
+        if (k.startsWith(prefix)) {
+            set.delete(k);
+            changed = true;
+        }
+    });
+    if (changed) saveConflictAckKeys(set);
+}
+
+// 在编辑场景中，把旧姓名的 ack 迁移到新姓名（新旧不同时清除旧 ack）；oldName 为空表示新建无需迁移
+function migrateConflictAckOnRename(empId, oldName, newName) {
+    if (!oldName || oldName === newName) return;
+    const set = loadConflictAckKeys();
+    const oldKey = conflictAckKey(empId, oldName);
+    if (set.has(oldKey)) {
+        // old 与 new 都可能是冲突/非冲突；但不管是不是，清理 oldKey 避免残留
+        set.delete(oldKey);
+        saveConflictAckKeys(set);
+    }
+}
+
+function getAvailableTags() {
+    const tags = new Set();
+    state.items.forEach(item => {
+        if (item.tags) {
+            item.tags.forEach(t => tags.add(t));
+        }
+    });
+    return Array.from(tags);
+}
+
+function openEmployeeAddModal() {
+    const modal = document.getElementById('employee-add-modal');
+    showEmpListView();
+    modal.classList.remove('hidden');
+}
+
+function closeEmployeeAddModal() {
+    const modal = document.getElementById('employee-add-modal');
+    modal.classList.add('hidden');
+}
+
+// 切换到列表视图
+function showEmpListView() {
+    document.getElementById('emp-modal-title').textContent = '自定义雇员';
+    document.getElementById('emp-list-view').classList.remove('hidden');
+    document.getElementById('emp-form-view').classList.add('hidden');
+    renderCustomEmpList();
+}
+
+// 切换到表单视图（新建或编辑）
+let editingEmpId = null;
+let editingEmpOldName = null;
+
+function showEmpFormView(empId) {
+    editingEmpId = (typeof empId === 'string' && empId) ? empId : null;
+    document.getElementById('emp-modal-title').textContent = editingEmpId ? '编辑雇员' : '新增雇员';
+    document.getElementById('emp-list-view').classList.add('hidden');
+    document.getElementById('emp-form-view').classList.remove('hidden');
+    renderEmpAddLevels(editingEmpId);
+    if (editingEmpId) {
+        const emp = state.employees.find(e => e.id === empId);
+        if (emp) {
+            document.getElementById('new-emp-name').value = emp.name;
+            editingEmpOldName = emp.name;
+        } else {
+            editingEmpOldName = null;
+        }
+    } else {
+        document.getElementById('new-emp-name').value = '';
+        editingEmpOldName = null;
+    }
+}
+
+// 渲染自定义雇员列表
+function renderCustomEmpList() {
+    const container = document.getElementById('custom-emp-list');
+    container.innerHTML = '';
+
+    const customEmps = loadCustomEmployees();
+    if (customEmps.length === 0) {
+        container.innerHTML = '<div class="custom-emp-empty">暂无自定义雇员，点击下方按钮添加</div>';
+        return;
+    }
+
+    const officialNames = new Set(state.employees.filter(e => !e.isCustom).map(e => e.name));
+
+    customEmps.forEach((emp, idx) => {
+        const item = document.createElement('div');
+        item.className = 'custom-emp-item';
+
+        const hasConflict = officialNames.has(emp.name);
+        const conflictBadge = hasConflict ? '<span class="custom-emp-item-tag conflict">与官方同名</span>' : '';
+
+        item.innerHTML = `
+            <span class="custom-emp-item-name">
+                ${emp.name}
+                ${conflictBadge}
+            </span>
+            <div class="custom-emp-item-actions">
+                <button class="item-action-btn move-btn up-btn" title="上移" ${idx === 0 ? 'disabled' : ''}>↑</button>
+                <button class="item-action-btn move-btn down-btn" title="下移" ${idx === customEmps.length - 1 ? 'disabled' : ''}>↓</button>
+                <button class="item-action-btn edit-btn" title="编辑">✎</button>
+                <button class="item-action-btn delete-btn" title="删除">✕</button>
+            </div>
+        `;
+
+        const upBtn = item.querySelector('.up-btn');
+        const downBtn = item.querySelector('.down-btn');
+        if (upBtn) {
+            upBtn.addEventListener('click', () => {
+                moveCustomEmployee(emp.id, -1);
+            });
+        }
+        if (downBtn) {
+            downBtn.addEventListener('click', () => {
+                moveCustomEmployee(emp.id, 1);
+            });
+        }
+
+        item.querySelector('.edit-btn').addEventListener('click', () => {
+            showEmpFormView(emp.id);
+        });
+
+        item.querySelector('.delete-btn').addEventListener('click', () => {
+            showConfirmDialog({
+                title: '删除确认',
+                message: `确定要删除自定义雇员「${emp.name}」吗？`,
+                onConfirm: () => {
+                    deleteCustomEmployee(emp.id);
+                }
+            });
+        });
+
+        container.appendChild(item);
+    });
+}
+
+// 自定义雇员排序：direction 为 -1（上移）或 1（下移）
+function moveCustomEmployee(empId, direction) {
+    const list = loadCustomEmployees();
+    const idx = list.findIndex(e => e.id === empId);
+    if (idx === -1) return;
+    const target = idx + direction;
+    if (target < 0 || target >= list.length) return;
+    [list[idx], list[target]] = [list[target], list[idx]];
+    saveCustomEmployees(list);
+    syncCustomEmployeesOrderInState(list);
+    renderCustomEmpList();
+    renderEmployeeList();
+}
+
+// 按 localStorage 顺序同步 state.employees 中自定义雇员（保持官方雇员顺序）
+function syncCustomEmployeesOrderInState(orderedCustom) {
+    const official = state.employees.filter(e => !e.isCustom);
+    const customMap = new Map();
+    state.employees.filter(e => e.isCustom).forEach(e => customMap.set(e.id, e));
+    const reordered = [];
+    orderedCustom.forEach(c => {
+        // 新创建的雇员可能在 state.employees 里，但 order 来自 localStorage（同一源），
+        // 直接用 customMap，找不到则视为数据尚未同步，跳过此项避免漂移。
+        const mem = customMap.get(c.id);
+        if (mem) reordered.push(mem);
+    });
+    state.employees = official.concat(reordered);
+}
+
+// 删除自定义雇员
+function deleteCustomEmployee(empId) {
+    // 清理该雇员所有重名确认记录
+    removeConflictAcksForEmp(empId);
+
+    // 从 localStorage 删除
+    const customEmps = loadCustomEmployees();
+    const filtered = customEmps.filter(e => e.id !== empId);
+    saveCustomEmployees(filtered);
+
+    // 从 state 删除
+    const idx = state.employees.findIndex(e => e.id === empId);
+    if (idx !== -1) {
+        state.employees.splice(idx, 1);
+    }
+    delete state.employeeStates[empId];
+    saveEmployeeStates();
+
+    renderCustomEmpList();
+    renderEmployeeList();
+}
+
+function renderEmpAddLevels(empId) {
+    const container = document.getElementById('emp-add-levels');
+    container.innerHTML = '';
+
+    const emp = empId ? state.employees.find(e => e.id === empId) : null;
+
+    for (let lv = 1; lv <= 5; lv++) {
+        const levelDiv = document.createElement('div');
+        levelDiv.className = 'emp-add-level';
+        levelDiv.dataset.level = lv;
+        levelDiv.innerHTML = `
+            <div class="emp-add-level-header">
+                <span class="emp-add-level-title">Lv.${lv}</span>
+                <button type="button" class="add-bonus-btn" data-action="add-bonus">+ 添加加成</button>
+            </div>
+            <div class="emp-add-bonus-list"></div>
+        `;
+        container.appendChild(levelDiv);
+
+        // 添加加成按钮事件
+        levelDiv.querySelector('[data-action="add-bonus"]').addEventListener('click', () => {
+            levelDiv.querySelector('.emp-add-bonus-list').appendChild(createBonusRow());
+        });
+
+        // 如果有现存数据，预填充
+        if (emp) {
+            const bonuses = emp.levels[String(lv)] || [];
+            bonuses.forEach(b => {
+                levelDiv.querySelector('.emp-add-bonus-list').appendChild(createBonusRow(b));
+            });
+        }
+    }
+}
+
+// 创建加成行，bonus 为可选的已有数据
+function createBonusRow(bonus) {
+    const row = document.createElement('div');
+    row.className = 'emp-add-bonus-row';
+
+    // 解析已有数据
+    let initType = 'direct';
+    let initValue = '';
+    let initIsPercent = false;
+    let initHasCond = false;
+    let initCondType = 'tagCount';
+    let initTag = '';
+    let initCount = 2;
+
+    if (bonus) {
+        if (bonus.type === 'direct' || bonus.type === 'traffic') {
+            initType = bonus.type;
+            initValue = bonus.isPercent ? bonus.value * 100 : bonus.value;
+            initIsPercent = !!bonus.isPercent;
+        } else if (bonus.type === 'conditional') {
+            // 条件加成：effectType 决定类型，effectValue 决定数值
+            initType = bonus.effectType === 'traffic' ? 'traffic' : 'direct';
+            initValue = bonus.isPercent ? bonus.effectValue * 100 : bonus.effectValue;
+            initIsPercent = !!bonus.isPercent;
+            initHasCond = true;
+            initCondType = bonus.conditionType || 'tagCount';
+            initTag = bonus.condition.tag || '';
+            initCount = bonus.condition.count || 2;
+        }
+    }
+
+    row.innerHTML = `
+        <select class="bonus-type-select">
+            <option value="direct" ${initType === 'direct' ? 'selected' : ''}>售价加成</option>
+            <option value="traffic" ${initType === 'traffic' ? 'selected' : ''}>人流量加成</option>
+        </select>
+        <div class="bonus-value-wrapper">
+            <input type="number" class="bonus-value-input" placeholder="数值" step="0.01" value="${initValue}">
+            <span class="bonus-value-suffix" style="display:${initIsPercent ? 'inline' : 'none'};">%</span>
+        </div>
+        <label class="bonus-percent-label">
+            <input type="checkbox" class="bonus-percent-check" ${initIsPercent ? 'checked' : ''}> 百分比
+        </label>
+        <label class="bonus-cond-label">
+            <input type="checkbox" class="bonus-cond-check" ${initHasCond ? 'checked' : ''}> 有条件
+        </label>
+        <div class="cond-fields" style="display:${initHasCond ? 'flex' : 'none'};">
+            <select class="bonus-cond-type-select">
+                <option value="tagCount" ${initCondType === 'tagCount' ? 'selected' : ''}>指定标签</option>
+                <option value="sameTagCount" ${initCondType === 'sameTagCount' ? 'selected' : ''}>任意标签</option>
+            </select>
+            <select class="bonus-tag-input" style="display:${initHasCond && initCondType === 'tagCount' ? 'inline-block' : 'none'};"></select>
+            <span>×</span>
+            <input type="number" class="bonus-count-input" value="${initCount}" min="1" max="5">
+        </div>
+        <button type="button" class="remove-bonus-btn" title="移除">×</button>
+    `;
+
+    // 填充标签选项
+    const tagSelect = row.querySelector('.bonus-tag-input');
+    getAvailableTags().forEach(tag => {
+        const opt = document.createElement('option');
+        opt.value = tag;
+        opt.textContent = tag;
+        if (tag === initTag) opt.selected = true;
+        tagSelect.appendChild(opt);
+    });
+
+    // 加成类型切换
+    row.querySelector('.bonus-type-select').addEventListener('change', () => updateBonusRowFields(row));
+
+    // 百分比勾选切换
+    row.querySelector('.bonus-percent-check').addEventListener('change', () => updateBonusRowFields(row));
+
+    // 条件勾选切换
+    row.querySelector('.bonus-cond-check').addEventListener('change', () => updateBonusRowFields(row));
+
+    // 条件类型切换
+    row.querySelector('.bonus-cond-type-select').addEventListener('change', () => updateBonusRowFields(row));
+
+    // 移除按钮
+    row.querySelector('.remove-bonus-btn').addEventListener('click', () => {
+        row.remove();
+    });
+
+    return row;
+}
+
+function updateBonusRowFields(row) {
+    const percentCheck = row.querySelector('.bonus-percent-check');
+    const suffix = row.querySelector('.bonus-value-suffix');
+    const condCheck = row.querySelector('.bonus-cond-check');
+    const condFields = row.querySelector('.cond-fields');
+    const condType = row.querySelector('.bonus-cond-type-select').value;
+    const tagSelect = row.querySelector('.bonus-tag-input');
+
+    // 百分比后缀显隐
+    if (suffix) {
+        suffix.style.display = percentCheck.checked ? 'inline' : 'none';
+    }
+
+    // 条件字段显隐
+    condFields.style.display = condCheck.checked ? 'flex' : 'none';
+
+    // sameTagCount 不需要指定标签
+    if (condCheck.checked) {
+        tagSelect.style.display = condType === 'sameTagCount' ? 'none' : 'inline-block';
+    }
+}
+
+function saveCustomEmployee() {
+    const name = document.getElementById('new-emp-name').value.trim();
+    if (!name) {
+        showConfirmDialog({ title: '提示', message: '请输入雇员名称', onConfirm: null });
+        return;
+    }
+
+    const isEdit = !!editingEmpId;
+    const selfId = editingEmpId || null;
+    const oldName = isEdit ? (editingEmpOldName || null) : null;
+
+    // 第一层：与其它自定义雇员同名 → 严格禁止
+    const customEmps = loadCustomEmployees();
+    const dupCustom = customEmps.find(e => e.id !== selfId && e.name === name);
+    if (dupCustom) {
+        showConfirmDialog({ title: '提示', message: '已存在同名自定义雇员，请换一个名称。', onConfirm: null });
+        return;
+    }
+
+    // 第二层：与官方雇员同名 → （且未被 ack 过）才弹确认，允许
+    const officialEmps = state.employees.filter(e => !e.isCustom);
+    const dupOfficial = officialEmps.find(e => e.name === name);
+
+    // 先准备 levels 与保存回调
+    const levels = collectBonusLevels();
+    const performSave = (ackThisConflict) => {
+        const empId = isEdit ? selfId : 'employee_custom_' + Date.now();
+        // 保存前处理 ack 迁移
+        if (isEdit) {
+            migrateConflictAckOnRename(empId, oldName, name);
+        }
+        if (ackThisConflict && dupOfficial) {
+            // 用户明确确认了“与官方同名仍创建/保存”，记入 ack（无论这次是新建或编辑）
+            addConflictAck(empId, name);
+        }
+        finalizeSaveCustomEmployee(empId, name, levels, isEdit);
+    };
+
+    if (dupOfficial) {
+        // 编辑且 (新name === 旧name 或 已经 ack 过这个 name) → 不重复弹
+        const alreadyAcked = isEdit && hasConflictAck(selfId, name);
+        if (alreadyAcked) {
+            performSave(true);
+            return;
+        }
+        const safeName = String(name).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const title = isEdit ? '名称冲突提醒' : '名称冲突提醒';
+        const verb = isEdit ? '保存该雇员' : '创建同名的自定义雇员';
+        const messageHtml = `官方雇员中已存在「${safeName}」。是否仍要${verb}？（它将以<span class="custom-badge confirm-inline-badge">自定义</span>标记区分）`;
+        showConfirmDialog({
+            title: title,
+            messageHtml: messageHtml,
+            onConfirm: () => performSave(true),
+        });
+        return;
+    } else {
+        // 新名字不冲突：如果编辑时旧名有 ack，按迁移规则清理旧 key（避免死数据）
+        if (isEdit) {
+            migrateConflictAckOnRename(selfId, oldName, name);
+        }
+        performSave(false);
+    }
+}
+
+function collectBonusLevels() {
+    const levels = {};
+    document.querySelectorAll('.emp-add-level').forEach(levelDiv => {
+        const lv = levelDiv.dataset.level;
+        const bonuses = [];
+        levelDiv.querySelectorAll('.emp-add-bonus-row').forEach(row => {
+            const type = row.querySelector('.bonus-type-select').value;
+            const value = parseFloat(row.querySelector('.bonus-value-input').value);
+            const isPercent = row.querySelector('.bonus-percent-check').checked;
+            const hasCond = row.querySelector('.bonus-cond-check').checked;
+
+            if (isNaN(value) || value === 0) return;
+
+            // 数值转换：百分比存为小数
+            const storedValue = isPercent ? value / 100 : value;
+
+            if (hasCond) {
+                const condType = row.querySelector('.bonus-cond-type-select').value;
+                const count = parseInt(row.querySelector('.bonus-count-input').value) || 2;
+                const tag = row.querySelector('.bonus-tag-input').value;
+                bonuses.push({
+                    type: 'conditional',
+                    conditionType: condType,
+                    condition: condType === 'sameTagCount' ? { count: count } : { tag: tag, count: count },
+                    effectType: type,
+                    effectValue: storedValue,
+                    isPercent: isPercent
+                });
+            } else {
+                if (type === 'direct') {
+                    bonuses.push({ type: 'direct', value: storedValue, isPercent: isPercent });
+                } else {
+                    bonuses.push({ type: 'traffic', value: isPercent ? storedValue : Math.round(storedValue), isPercent: isPercent });
+                }
+            }
+        });
+        levels[lv] = bonuses;
+    });
+    return levels;
+}
+
+function finalizeSaveCustomEmployee(empId, name, levels, isEdit) {
+    const newEmp = { id: empId, name: name, levels: levels, isCustom: true };
+
+    // 保存到 localStorage
+    const customEmps = loadCustomEmployees();
+    if (isEdit) {
+        const idx = customEmps.findIndex(e => e.id === empId);
+        if (idx !== -1) {
+            customEmps[idx] = newEmp;
+        }
+    } else {
+        customEmps.push(newEmp);
+    }
+    saveCustomEmployees(customEmps);
+
+    // 更新 state
+    if (isEdit) {
+        const idx = state.employees.findIndex(e => e.id === empId);
+        if (idx !== -1) {
+            newEmp.isCustom = true;
+            state.employees[idx] = newEmp;
+        }
+    } else {
+        state.employees.push(newEmp);
+        if (!state.employeeStates[empId]) {
+            state.employeeStates[empId] = { owned: false, level: 1 };
+        }
+    }
+
+    editingEmpId = null;
+
+    // 返回列表视图并刷新雇员卡片
+    showEmpListView();
+    renderEmployeeList();
+}
+
+// ========== 自定义雇员 localStorage ==========
+function saveCustomEmployees(employees) {
+    try {
+        localStorage.setItem(CUSTOM_EMP_STORAGE_KEY, JSON.stringify(employees));
+    } catch (error) {
+        console.error('保存自定义雇员失败:', error);
+    }
+}
+
+function loadCustomEmployees() {
+    try {
+        const saved = localStorage.getItem(CUSTOM_EMP_STORAGE_KEY);
+        if (saved) {
+            return JSON.parse(saved);
+        }
+    } catch (error) {
+        console.error('读取自定义雇员失败:', error);
+    }
+    return [];
 }
 
 // ========== 测量文本像素宽度 ==========
@@ -1132,8 +2201,8 @@ function getItemPrice(item) {
 }
 
 // ========== 本地存储 ==========
-const STORAGE_KEY = 'yihuan_employee_states';
-const ITEM_STORAGE_KEY = 'yihuan_item_states';
+const STORAGE_KEY = 'nte_origen_employee_states';
+const ITEM_STORAGE_KEY = 'nte_origen_item_states';
 
 function saveEmployeeStates() {
     try {
@@ -2372,7 +3441,52 @@ window.addEventListener('resize', () => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
+    // ===== 迁移系统（独立模块，最早执行） =====
+    // 未来想移除：删除这一行 + 文件顶部 BEGIN MIGRATION SYSTEM...END 代码块，无其它耦合
+    if (typeof window.__nte_origen_runMigrations === 'function') {
+        window.__nte_origen_runMigrations();
+    }
+
     loadData();
+
+    /**
+     * 给弹窗遮罩层（overlay）绑定“点击遮罩空白关闭”的统一处理，解决两类交互 Bug：
+     *  1) 拖动误关：必须满足「mousedown 和 mouseup 都正好落在 overlay 本身（非 container 内部）」才视为一次“点空白”，
+     *     避免从弹窗内按住左键拖到窗外释放（click 公共祖先命中 overlay）时意外关闭。
+     *  2) 强制弹窗：若 overlay 节点上带有 data-no-overlay-close 属性（如雇员冲突确认），则完全禁止遮罩关闭。
+     * @param {HTMLElement|string} overlayOrId 遮罩层 DOM 或其 id
+     * @param {Function} closeFn 执行关闭的函数
+     */
+    function attachOverlayCloseHandler(overlayOrId, closeFn) {
+        const overlay = (typeof overlayOrId === 'string') ? document.getElementById(overlayOrId) : overlayOrId;
+        if (!overlay) return;
+        let mouseDownOnOverlay = false;
+        let mouseUpOnOverlay = false;
+        overlay.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return; // 仅左键
+            mouseDownOnOverlay = (e.target === overlay);
+            mouseUpOnOverlay = false;
+        });
+        overlay.addEventListener('mouseup', (e) => {
+            if (e.button !== 0) return;
+            mouseUpOnOverlay = (e.target === overlay);
+        });
+        overlay.addEventListener('click', (e) => {
+            // 只有点击真正命中 overlay 本身（公共祖先情形或直接点击）时才判定
+            if (e.target !== overlay) {
+                mouseDownOnOverlay = false; mouseUpOnOverlay = false; return;
+            }
+            // 雇员冲突等强制弹窗：带 data-no-overlay-close 一律不允许遮罩关闭
+            if (overlay.hasAttribute('data-no-overlay-close') && overlay.getAttribute('data-no-overlay-close') !== 'false') {
+                mouseDownOnOverlay = false; mouseUpOnOverlay = false; return;
+            }
+            // 精确：左键在遮罩上按下并在遮罩上松开 —— 才认为是一次“点空白”
+            if (mouseDownOnOverlay && mouseUpOnOverlay) {
+                try { if (typeof closeFn === 'function') closeFn(); } catch (err) { console.error(err); }
+            }
+            mouseDownOnOverlay = false; mouseUpOnOverlay = false;
+        });
+    }
 
     // 计算按钮
     document.getElementById('calculate-btn').addEventListener('click', calculateOptimalPlan);
@@ -2387,12 +3501,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // 关闭公告模态框按钮
     document.getElementById('close-announcement-btn').addEventListener('click', closeAnnouncementModal);
 
-    // 点击公告模态框背景关闭
-    document.getElementById('announcement-modal').addEventListener('click', (e) => {
-        if (e.target.id === 'announcement-modal') {
-            closeAnnouncementModal();
-        }
-    });
+    // 公告：点空白处关闭（严格判定，拖动不会误关）
+    attachOverlayCloseHandler('announcement-modal', closeAnnouncementModal);
 
     // 高级设置按钮
     document.getElementById('advanced-settings-btn').addEventListener('click', openAdvancedSettingsModal);
@@ -2404,12 +3514,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // 关闭高级设置模态框按钮
     document.getElementById('close-modal-btn').addEventListener('click', closeAdvancedSettingsModal);
 
-    // 点击高级设置模态框背景关闭
-    document.getElementById('advanced-settings-modal').addEventListener('click', (e) => {
-        if (e.target.id === 'advanced-settings-modal') {
-            closeAdvancedSettingsModal();
-        }
-    });
+    // 高级设置：点空白处关闭（严格判定，拖动不会误关）
+    attachOverlayCloseHandler('advanced-settings-modal', closeAdvancedSettingsModal);
 
     // 装修加成输入变化
     document.getElementById('decoration-bonus-input').addEventListener('change', (e) => {
@@ -2447,6 +3553,7 @@ document.addEventListener('DOMContentLoaded', () => {
             closeAnnouncementModal();
             closeAdvancedSettingsModal();
             closeConfirmModal();
+            closeEmpCompareModal();
         }
     });
 
@@ -2456,12 +3563,13 @@ document.addEventListener('DOMContentLoaded', () => {
         closeConfirmModal();
         if (cb) cb();
     });
-    document.getElementById('confirm-cancel-btn').addEventListener('click', closeConfirmModal);
-    document.getElementById('confirm-modal').addEventListener('click', (e) => {
-        if (e.target.id === 'confirm-modal') {
-            closeConfirmModal();
-        }
+    document.getElementById('confirm-cancel-btn').addEventListener('click', () => {
+        const cb = confirmCancelCallback;
+        closeConfirmModal();
+        if (cb) cb();
     });
+    // 确认弹窗：空白关闭（严格判定 + 雇员冲突时会动态加 data-no-overlay-close 强制跳过）
+    attachOverlayCloseHandler('confirm-modal', closeConfirmModal);
 
     // GitHub按钮二次确认（使用自定义弹窗）
     const githubButtons = document.querySelectorAll('.github-link');
@@ -2478,4 +3586,93 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     });
+
+    // 自定义雇员按钮
+    document.getElementById('add-employee-btn').addEventListener('click', openEmployeeAddModal);
+    document.getElementById('close-employee-add-btn').addEventListener('click', closeEmployeeAddModal);
+    document.getElementById('emp-show-form-btn').addEventListener('click', () => showEmpFormView());
+    document.getElementById('emp-add-cancel-btn').addEventListener('click', showEmpListView);
+    document.getElementById('emp-add-save-btn').addEventListener('click', saveCustomEmployee);
+    // 自定义雇员弹窗：点空白处关闭（严格判定）
+    attachOverlayCloseHandler('employee-add-modal', closeEmployeeAddModal);
+
+    // 雇员加成对比弹窗按钮
+    document.getElementById('close-emp-compare-btn').addEventListener('click', closeEmpCompareModal);
+    document.getElementById('emp-compare-close-btn').addEventListener('click', closeEmpCompareModal);
+    document.getElementById('emp-compare-keep-btn').addEventListener('click', handleEmpCompareKeep);
+    document.getElementById('emp-compare-delete-btn').addEventListener('click', handleEmpCompareDelete);
+    // 加成对比弹窗：点空白处关闭（严格判定；保持用户从确认弹窗点对比弹出后，用户随时可空白关返回）
+    attachOverlayCloseHandler('emp-compare-modal', closeEmpCompareModal);
+
 });
+
+// ========== 自定义雇员重名提醒（官方雇员新增时触发） ==========
+// 由 loadData 在数据/UI 都就绪后调用
+function promptCustomEmpConflicts(conflictingList) {
+    if (!Array.isArray(conflictingList) || conflictingList.length === 0) return;
+    // 方案B：已 ack 过 (emp.id||emp.name) 的就不再弹
+    const list = conflictingList
+        .filter(e => e && e.id)
+        .filter(e => !hasConflictAck(e.id, e.name))
+        .slice();
+    const askNext = () => {
+        if (list.length === 0) return;
+        const emp = list.shift();
+        // 再次校验：用户可能已在其他地方删除
+        const exists = loadCustomEmployees().some(e => e.id === emp.id);
+        if (!exists) { askNext(); return; }
+        // 再检查一次 ack（避免竞态）
+        if (hasConflictAck(emp.id, emp.name)) { askNext(); return; }
+
+        // 找对应官方雇员（用于对比）
+        const officialEmp = (state && Array.isArray(state.employees) ? state.employees : [])
+            .find(e => e && !e.isCustom && e.name === emp.name);
+
+        let resumed = false;
+        const goNext = () => {
+            if (resumed) return;
+            resumed = true;
+            setTimeout(askNext, 50);
+        };
+
+        const doDelete = () => {
+            deleteCustomEmployee(emp.id);
+            closeConfirmModal();
+            goNext();
+        };
+        const doKeep = () => {
+            // 点击“保留” → 写入 ack，下次进网页不再弹
+            addConflictAck(emp.id, emp.name);
+            closeConfirmModal();
+            goNext();
+        };
+        const openCompare = () => {
+            const freshCustom = (state && Array.isArray(state.employees) ? state.employees : [])
+                .find(e => e && e.id === emp.id) || emp;
+            openEmpCompareModal(freshCustom, officialEmp || null, {
+                onKeep: doKeep,
+                onDelete: doDelete,
+            });
+        };
+
+        const safeName = String(emp.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const messageHtml = `检测到你的自定义雇员「${safeName}」与官方雇员重名（可能是作者新增了该雇员）。是否删除该自定义雇员？（保留则仍以<span class="custom-badge confirm-inline-badge">自定义</span>标记显示）`;
+        showConfirmDialog({
+            title: '雇员名称冲突',
+            messageHtml: messageHtml,
+            okText: '删除',
+            cancelText: '保留',
+            okClass: 'danger-btn confirm-dialog-danger-btn',
+            extraButtons: [{
+                text: '对比',
+                className: 'secondary-btn confirm-compare-btn',
+                onClick: openCompare,
+            }],
+            onConfirm: doDelete,
+            onCancel: doKeep,
+            // 雇员冲突：必须点删除 / 保留 / 对比 三个按钮之一，不允许点空白处直接关闭
+            overlayCloseEnabled: false,
+        });
+    };
+    setTimeout(askNext, 500);
+}
