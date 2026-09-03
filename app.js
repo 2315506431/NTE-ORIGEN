@@ -476,9 +476,9 @@ async function loadData() {
         loadingOverlay.classList.remove('hidden');
         
         const [employeesRes, itemsRes, announcementsRes] = await Promise.all([
-            fetch('./ORIGEN/data/employees.json'),
-            fetch('./ORIGEN/data/items.json'),
-            fetch('./ORIGEN/data/announcements.json'),
+            fetch('./data/employees.json'),
+            fetch('./data/items.json'),
+            fetch('./data/announcements.json'),
         ]);
 
         state.employees = await employeesRes.json();
