@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>异环一咖舍助手</title>
+    <link rel="stylesheet" href="ORIGEN/style.css?v=236">
+    <link rel="icon" href="ORIGEN/favicon.ico">
+</head>
+<body>
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p>加载中...</p>
+    </div>
+    <div class="app-container">
+        <!-- 顶部标题 -->
+        <header class="app-header">
+            <div class="header-content">
+                <h1 class="app-title">
+                    <span class="title-icon">🎯</span>
+                    异环一咖舍助手
+                </h1>
+                <p class="app-subtitle">智能计算最优经营策略，让收益最大化</p>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- 风向标区域 -->
+            <section class="card windvane-section">
+                <div class="card-header">
+                    <div class="windvane-header-top">
+                        <h2 class="card-title">
+                        <span class="section-icon">🔥</span>
+                        风向标
+                    </h2>
+                        <label class="windvane-toggle">
+                            <span class="windvane-toggle-label">周期预测</span>
+                            <div class="switch-wrapper">
+                                <input type="checkbox" id="cycle-prediction-switch" class="switch-input">
+                                <label for="cycle-prediction-switch" class="switch-slider"></label>
+                            </div>
+                        </label>
+                    </div>
+                    <p class="card-desc">根据现实日期自动变更，每天中午12点切换</p>
+                </div>
+                <div class="card-body">
+                    <div class="windvane-container">
+                        <div id="current-windvane" class="windvane-card current-windvane">
+                            <span class="windvane-flame">🔥</span>
+                            <span class="windvane-prefix">当前</span>
+                            <span id="windvane-name" class="windvane-name">加载中...</span>
+                            <span id="windvane-bonus" class="windvane-bonus">+0</span>
+                        </div>
+                        <div id="next-windvane" class="windvane-card next-windvane">
+                            <span class="windvane-flame">🌪️</span>
+                            <span id="next-windvane-hours" class="windvane-hours">--小时后</span>
+                            <span id="next-windvane-name" class="windvane-name">加载中...</span>
+                            <span id="next-windvane-bonus" class="windvane-bonus">+0</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 雇员管理区域 -->
+            <section class="card employee-section">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <span class="section-icon">👥</span>
+                        雇员配置
+                    </h2>
+                    <p class="card-desc">点击等级按钮选择拥有的雇员，系统将自动推荐最优搭配</p>
+                </div>
+                <div class="card-body">
+                    <div id="employee-list" class="employee-list">
+                        <!-- 雇员卡片由JS动态生成 -->
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- 推荐方案区域 -->
+            <section class="card recommendation-section">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <span class="section-icon">💡</span>
+                        最优搭配推荐
+                    </h2>
+                    <p class="card-desc">基于当前配置，系统自动计算收益最高的雇员与菜品组合</p>
+                </div>
+                <div class="card-body">
+                    <button id="calculate-btn" class="calculate-btn">
+                        <span class="btn-icon">🚀</span>
+                        计算最优方案
+                    </button>
+                    <div id="recommendation-result" class="recommendation-result">
+                        <div class="recommendation-placeholder">
+                            <p>配置拥有的雇员后，点击上方按钮计算最优方案</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 计算明细区域 -->
+            <section class="card calc-detail-section hidden">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <span class="section-icon">📊</span>
+                        计算明细
+                    </h2>
+                    <p class="card-desc">详细的收益计算过程 · 计算过程不四舍五入，下方明细仅做显示</p>
+                </div>
+                <div class="card-body">
+                    <div id="calc-detail-result" class="calc-detail-container"></div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="app-footer">
+            <p>异环一咖舍助手 · 作者：<span class="author-name">雨雾杰</span> · 数据仅供参考，请以游戏内实际数据为准</p>
+        </footer>
+    </div>
+
+    <!-- 底部固定按钮条（窄屏） -->
+    <div class="bottom-bar">
+        <a href="https://github.com/2315506431/My-Web" target="_blank" class="bottom-bar-btn github-link">
+            <span class="btn-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                </svg>
+            </span>
+            <span class="btn-text">GitHub</span>
+        </a>
+        <button id="announcement-btn" class="bottom-bar-btn">
+            <span class="btn-icon">📢</span>
+            <span class="btn-text">公告</span>
+        </button>
+        <button id="advanced-settings-btn" class="bottom-bar-btn">
+            <span class="btn-icon">⚙️</span>
+            <span class="btn-text">设置</span>
+        </button>
+    </div>
+
+    <!-- 悬浮按钮组（宽屏） -->
+    <div class="floating-btn-group">
+        <button id="advanced-settings-btn-float" class="floating-btn advanced-settings-btn" title="设置">⚙️</button>
+        <button id="announcement-btn-float" class="floating-btn announcement-btn" title="公告">📢</button>
+        <a href="https://github.com/2315506431/My-Web" target="_blank" class="floating-btn github-btn github-link" title="GitHub 仓库">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+        </a>
+    </div>
+
+    <!-- 确认弹窗 -->
+    <div id="confirm-modal" class="modal-overlay hidden">
+        <div class="modal-container confirm-modal-container">
+            <div class="modal-header">
+                <h2 id="confirm-title">确认</h2>
+            </div>
+            <div class="modal-body">
+                <p id="confirm-message" class="confirm-message">确定要执行此操作吗？</p>
+                <div class="modal-actions">
+                    <button id="confirm-cancel-btn" class="secondary-btn">取消</button>
+                    <button id="confirm-ok-btn" class="primary-btn">确定</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 公告弹窗 -->
+    <div id="announcement-modal" class="modal-overlay hidden">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2>📢 公告</h2>
+                <button id="close-announcement-btn" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="announcement-content" class="announcement-content">
+                    <!-- 公告内容由JS动态渲染 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置弹窗 -->
+    <div id="advanced-settings-modal" class="modal-overlay hidden">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2>设置</h2>
+                <button id="close-modal-btn" class="close-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <label for="decoration-bonus-input">装修加成</label>
+                    <input type="number" id="decoration-bonus-input" class="setting-input" min="0" step="0.001">
+                </div>
+                <div class="setting-group">
+                    <label>专属客服</label>
+                    <div class="switch-wrapper">
+                        <input type="checkbox" id="exclusive-service-switch" class="switch-input">
+                        <label for="exclusive-service-switch" class="switch-slider"></label>
+                    </div>
+                    <p class="setting-hint">浔羁遇等级7级的奖励，开启后增加1%人流量</p>
+                </div>
+                <div class="setting-group">
+                    <label>风向标</label>
+                    <div class="switch-wrapper">
+                        <input type="checkbox" id="windvane-switch" class="switch-input" checked>
+                        <label for="windvane-switch" class="switch-slider"></label>
+                    </div>
+                    <p class="setting-hint">未解锁风向标的用户可关闭此功能</p>
+                </div>
+                <div class="setting-group">
+                    <label>店铺数量</label>
+                    <div id="shop-count-selector" class="shop-count-selector"></div>
+                    <p class="setting-hint">每店铺解锁2雇员+1菜品，共<span id="shop-count-info">10</span>雇员/<span id="shop-count-dish-info">5</span>菜品</p>
+                </div>
+                
+                <hr class="modal-divider">
+                
+                <!-- 菜品设置 -->
+                <div class="collapsible-section collapsed">
+                    <div class="collapsible-header" id="item-settings-toggle">
+                        <h3 class="setting-section-title">菜品设置</h3>
+                        <span class="collapsible-arrow">☰</span>
+                    </div>
+                    <div class="collapsible-content" id="item-settings-content">
+                        <p class="setting-desc">配置已解锁的菜品及其等级</p>
+                        <div class="item-bulk-selector">
+                            <button class="bulk-btn secondary-btn" data-level="0">全不解锁</button>
+                            <button class="bulk-btn primary-btn" data-level="1">全1级</button>
+                            <button class="bulk-btn primary-btn" data-level="2">全2级</button>
+                        </div>
+                        <div id="item-settings-list" class="employee-list item-settings-scroll"></div>
+                    </div>
+                </div>
+                
+                <hr class="modal-divider">
+                
+                <!-- 其他设置 -->
+                <div class="collapsible-section collapsed">
+                    <div class="collapsible-header" id="other-settings-toggle">
+                        <h3 class="setting-section-title">其他设置</h3>
+                        <span class="collapsible-arrow">☰</span>
+                    </div>
+                    <div class="collapsible-content" id="other-settings-content" style="padding-top: 4px;">
+                        <!-- 基础人流量 -->
+                        <div class="setting-group" style="margin-bottom: 8px; margin-top: 0;">
+                            <label for="base-traffic-input">基础人流量</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <input type="number" id="base-traffic-input" class="setting-input" min="0" step="100" style="flex: 1;">
+                                <button id="reset-traffic-btn" class="secondary-btn" style="white-space: nowrap;">恢复默认</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr class="modal-divider">
+                <div class="danger-zone">
+                    <h3>危险操作</h3>
+                    <button id="clear-data-btn" class="danger-btn">清除所有本地数据</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="ORIGEN/app.js?v=255"></script>
+</body>
+</html>

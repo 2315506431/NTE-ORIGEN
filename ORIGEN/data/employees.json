@@ -1,0 +1,167 @@
+[
+  {
+    "id": "employee_xiaozhi",
+    "name": "小吱",
+    "levels": {
+      "1": [{ "type": "traffic", "value": 18 }],
+      "2": [],
+      "3": [],
+      "4": [],
+      "5": [{ "type": "traffic", "value": 27 }]
+    }
+  },
+  {
+    "id": "employee_haiyue",
+    "name": "海月",
+    "levels": {
+      "1": [{ "type": "direct", "value": 0.12 }],
+      "2": [{ "type": "conditional", "conditionType": "tagCount", "condition": { "tag": "饮料", "count": 2 }, "effectType": "traffic", "effectValue": 0.01, "isPercent": true }],
+      "3": [],
+      "4": [],
+      "5": [{ "type": "conditional", "conditionType": "tagCount", "condition": { "tag": "饮料", "count": 2 }, "effectType": "traffic", "effectValue": 0.015, "isPercent": true }]
+    }
+  },
+  {
+    "id": "employee_dafutier",
+    "name": "达芙蒂尔",
+    "levels": {
+      "1": [{ "type": "traffic", "value": 18 }],
+      "2": [],
+      "3": [],
+      "4": [],
+      "5": [{ "type": "traffic", "value": 27 }]
+    }
+  },
+  {
+    "id": "employee_aidejia",
+    "name": "埃德嘉",
+    "levels": {
+      "1": [{ "type": "traffic", "value": 18 }],
+      "2": [],
+      "3": [{ "type": "traffic", "value": 18 }],
+      "4": [],
+      "5": [{ "type": "traffic", "value": 27 }]
+    }
+  },
+  {
+    "id": "employee_bohe",
+    "name": "薄荷",
+    "levels": {
+      "1": [{ "type": "direct", "value": 0.12 }],
+      "2": [],
+      "3": [],
+      "4": [],
+      "5": [{ "type": "direct", "value": 0.18 }]
+    }
+  },
+  {
+    "id": "employee_adeler",
+    "name": "阿德勒",
+    "levels": {
+      "1": [{ "type": "direct", "value": 0.12 }],
+      "2": [],
+      "3": [],
+      "4": [],
+      "5": [{ "type": "direct", "value": 0.18 }]
+    }
+  },
+  {
+    "id": "employee_haniya",
+    "name": "哈尼娅",
+    "levels": {
+      "1": [{ "type": "direct", "value": 0.12 }],
+      "2": [],
+      "3": [{ "type": "direct", "value": 0.12 }],
+      "4": [],
+      "5": [{ "type": "direct", "value": 0.18 }]
+    }
+  },
+  {
+    "id": "employee_yi",
+    "name": "翳",
+    "levels": {
+      "1": [{ "type": "traffic", "value": 18 }],
+      "2": [],
+      "3": [],
+      "4": [],
+      "5": [{ "type": "traffic", "value": 27 }]
+    }
+  },
+  {
+    "id": "employee_nanali",
+    "name": "娜娜莉",
+    "levels": {
+      "1": [{ "type": "conditional", "conditionType": "tagCount", "condition": { "tag": "主食", "count": 1 }, "effectType": "direct", "effectValue": 0.2 }],
+      "2": [],
+      "3": [],
+      "4": [],
+      "5": [{ "type": "conditional", "conditionType": "tagCount", "condition": { "tag": "主食", "count": 2 }, "effectType": "direct", "effectValue": 0.3 }]
+    }
+  },
+  {
+    "id": "employee_zaowu",
+    "name": "早雾",
+    "levels": {
+      "1": [{ "type": "direct", "value": 0.12 }],
+      "2": [],
+      "3": [],
+      "4": [],
+      "5": [{ "type": "conditional", "conditionType": "sameTagCount", "condition": { "count": 3 }, "effectType": "direct", "effectValue": 0.3 }]
+    }
+  },
+  {
+    "id": "employee_baizang",
+    "name": "白藏",
+    "levels": {
+      "1": [{ "type": "traffic", "value": 18 }],
+      "2": [],
+      "3": [],
+      "4": [],
+      "5": [{ "type": "traffic", "value": 27 }]
+    }
+  },
+  {
+    "id": "employee_anhunqu",
+    "name": "安魂曲",
+    "levels": {
+      "1": [{ "type": "conditional", "conditionType": "tagCount", "condition": { "tag": "甜品", "count": 1 }, "effectType": "direct", "effectValue": 0.01, "isPercent": true }],
+      "2": [],
+      "3": [],
+      "4": [],
+      "5": [{ "type": "conditional", "conditionType": "tagCount", "condition": { "tag": "甜品", "count": 2 }, "effectType": "direct", "effectValue": 0.015, "isPercent": true }]
+    }
+  },
+  {
+    "id": "employee_zhenhong",
+    "name": "真红",
+    "levels": {
+      "1": [{ "type": "conditional", "conditionType": "tagCount", "condition": { "tag": "饮料", "count": 3 }, "effectType": "direct", "effectValue": 0.3 }],
+      "2": [],
+      "3": [{ "type": "conditional", "conditionType": "tagCount", "condition": { "tag": "饮料", "count": 3 }, "effectType": "direct", "effectValue": 0.3 }],
+      "4": [],
+      "5": [{ "type": "conditional", "conditionType": "tagCount", "condition": { "tag": "饮料", "count": 3 }, "effectType": "direct", "effectValue": 0.03, "isPercent": true }]
+    }
+  },
+  {
+    "id": "employee_yiluoyi",
+    "name": "伊洛伊",
+    "levels": {
+      "1": [{ "type": "traffic", "value": 18 }],
+      "2": [],
+      "3": [{ "type": "traffic", "value": 18 }],
+      "4": [],
+      "5": [{ "type": "traffic", "value": 27 }]
+    }
+  },
+  {
+    "id": "employee_lingke",
+    "name": "灵可",
+    "levels": {
+      "1": [{ "type": "traffic", "value": 18 }],
+      "2": [],
+      "3": [{ "type": "traffic", "value": 18 }],
+      "4": [],
+      "5": [{ "type": "traffic", "value": 27 }]
+    }
+  }
+]

@@ -1,0 +1,146 @@
+[
+  {
+    "id": "item_1",
+    "name": "烤椰拿铁",
+    "price1": 2.4,
+    "price2": 10.2,
+    "category": "饮料",
+    "tags": ["饮料", "咖啡豆", "水果"]
+  },
+  {
+    "id": "item_2",
+    "name": "冰摩卡",
+    "price1": 3,
+    "price2": 10.6,
+    "category": "饮料",
+    "tags": ["饮料", "咖啡豆"]
+  },
+  {
+    "id": "item_3",
+    "name": "苹果派",
+    "price1": 3.5,
+    "price2": 11,
+    "category": "甜品",
+    "tags": ["甜品", "面粉", "水果"]
+  },
+  {
+    "id": "item_4",
+    "name": "西红柿煎蛋可颂",
+    "price1": 4,
+    "price2": 11.4,
+    "category": "主食",
+    "tags": ["主食", "面粉", "水果"]
+  },
+  {
+    "id": "item_5",
+    "name": "金枪鱼三明治",
+    "price1": 4.6,
+    "price2": 11.8,
+    "category": "主食",
+    "tags": ["主食", "面粉"]
+  },
+  {
+    "id": "item_6",
+    "name": "风华琥珀",
+    "price1": 5.1,
+    "price2": 12.2,
+    "category": "饮料",
+    "tags": ["饮料", "咖啡豆", "水果"]
+  },
+  {
+    "id": "item_7",
+    "name": "抹茶熔岩慕斯",
+    "price1": 5.5,
+    "price2": 12.6,
+    "category": "甜品",
+    "tags": ["甜品", "面粉"]
+  },
+  {
+    "id": "item_8",
+    "name": "生巧雪醇拿铁",
+    "price1": 6,
+    "price2": 13,
+    "category": "饮料",
+    "tags": ["饮料", "咖啡豆"]
+  },
+  {
+    "id": "item_9",
+    "name": "厚切新鲜牛肉三明治",
+    "price1": 6.4,
+    "price2": 13.5,
+    "category": "主食",
+    "tags": ["主食", "面粉"]
+  },
+  {
+    "id": "item_10",
+    "name": "红豆黄油可颂",
+    "price1": 7,
+    "price2": 14,
+    "category": "主食",
+    "tags": ["主食", "面粉"]
+  },
+  {
+    "id": "item_11",
+    "name": "草莓盒子蛋糕",
+    "price1": 7.4,
+    "price2": 14.5,
+    "category": "甜品",
+    "tags": ["甜品", "面粉", "水果"]
+  },
+  {
+    "id": "item_12",
+    "name": "橙香热咖啡",
+    "price1": 7.8,
+    "price2": 15,
+    "category": "饮料",
+    "tags": ["饮料", "咖啡豆", "水果"]
+  },
+  {
+    "id": "item_13",
+    "name": "炸猪排三明治",
+    "price1": 8.1,
+    "price2": 15.5,
+    "category": "主食",
+    "tags": ["主食", "面粉"]
+  },
+  {
+    "id": "item_14",
+    "name": "脆椰曲奇玛奇朵",
+    "price1": 8.6,
+    "price2": 16,
+    "category": "饮料",
+    "tags": ["饮料", "咖啡豆", "水果"]
+  },
+  {
+    "id": "item_15",
+    "name": "雪顶抹茶拿铁",
+    "price1": 9,
+    "price2": 16.5,
+    "category": "饮料",
+    "tags": ["饮料", "咖啡豆"]
+  },
+  {
+    "id": "item_16",
+    "name": "提拉米苏",
+    "price1": 9.3,
+    "price2": 17,
+    "category": "甜品",
+    "tags": ["甜品", "面粉", "咖啡豆"]
+  },
+  {
+    "id": "item_17",
+    "name": "火腿芝士可颂",
+    "price1": 9.7,
+    "price2": 17.5,
+    "category": "主食",
+    "tags": ["主食", "面粉"]
+  },
+  {
+    "id": "item_18",
+    "name": "焦糖可可千层",
+    "price1": 10,
+    "price2": 18,
+    "category": "甜品",
+    "tags": ["甜品", "面粉"]
+  }
+]
