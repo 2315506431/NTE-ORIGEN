@@ -1936,7 +1936,12 @@ function loadCustomEmployees() {
     try {
         const saved = localStorage.getItem(CUSTOM_EMP_STORAGE_KEY);
         if (saved) {
-            return JSON.parse(saved);
+            const list = JSON.parse(saved);
+            // 修复旧数据：确保每个自定义雇员都有 levels 属性，避免后续访问 emp.levels['1'] 崩溃
+            return list.map(e => ({
+                ...e,
+                levels: e.levels || { '1': [], '2': [], '3': [], '4': [], '5': [] },
+            }));
         }
     } catch (error) {
         console.error('读取自定义雇员失败:', error);
@@ -2417,16 +2422,15 @@ function findBestPlan(ownedEmployees) {
         };
     } else {
         // 雇员数>上限，使用组合搜索找到最优的雇员组合
-        // 先按贪心评分排序，取前15个进行组合搜索（减少计算量）
+        // 按贪心评分排序（帮助支配剪枝更早命中更优组合，提高剪枝效率）
         const sortedEmployees = [...availableEmployees].sort((a, b) => {
             const bonusA = getEmployeeBonusScore(a);
             const bonusB = getEmployeeBonusScore(b);
             return bonusB - bonusA;
         });
-        
-        // 取前15个（如果有）进行组合搜索，平衡性能和效果
-        const candidates = sortedEmployees.slice(0, Math.min(availableEmployees.length, 15));
-        bestPlan = findBestEmployeeCombination(candidates);
+
+        // 全量搜索所有雇员，不截断——支配剪枝保证正确性同时控制计算量
+        bestPlan = findBestEmployeeCombination(sortedEmployees);
     }
 
     return bestPlan;
